@@ -54,8 +54,16 @@ type watchPathType struct {
 	wType watchType
 }
 
-// Dialer is a function to be used to establish a connection to a single host.
-type Dialer func(network, address string, timeout time.Duration) (net.Conn, error)
+// Dialer is an interface to be used to establish a connection to a single host.
+type Dialer interface {
+	Dial(network, address string, timeout time.Duration) (net.Conn, error)
+}
+
+type DefaultDialer struct{}
+
+func (d *DefaultDialer) Dial(network, address string, timeout time.Duration) (net.Conn, error) {
+	return net.DialTimeout(network, address, timeout)
+}
 
 // Logger is an interface that can be implemented to provide custom log output.
 type Logger interface {
@@ -190,7 +198,7 @@ func Connect(servers []string, sessionTimeout time.Duration, options ...connOpti
 
 	ec := make(chan Event, eventChanSize)
 	conn := &Conn{
-		dialer:         net.DialTimeout,
+		dialer:         &DefaultDialer{},
 		hostProvider:   &DNSHostProvider{},
 		conn:           nil,
 		state:          StateDisconnected,
@@ -384,7 +392,7 @@ func (c *Conn) connect() error {
 			}
 		}
 
-		zkConn, err := c.dialer("tcp", c.Server(), c.connectTimeout)
+		zkConn, err := c.dialer.Dial("tcp", c.Server(), c.connectTimeout)
 		if err == nil {
 			c.conn = zkConn
 			c.setState(StateConnected)
